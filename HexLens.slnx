@@ -1,0 +1,43 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HexLens.App/HexLens.App.csproj" />
+    <Project Path="src/HexLens.Core/HexLens.Core.csproj" />
+  </Folder>
+
+  <!--
+    原生编码库（C++17）。它由 CMake 构建（顶层 CMakeLists.txt 里 add_subdirectory），
+    不是 MSBuild 项目，所以这里以「解决方案文件夹 + 文件」的形式纳入 ——
+    便于在 Visual Studio 的解决方案视图里直接浏览与编辑这些源码。
+
+    构建方式：
+      cmake -S . -B build -G Ninja    然后  cmake build build    # 走顶层 CMake（推荐）
+      native/ctfcodec/build.ps1                                  # 原生库自带的独立构建脚本
+  -->
+  <Folder Name="/native/ctfcodec/">
+    <File Path="native/ctfcodec/CMakeLists.txt" />
+    <File Path="native/ctfcodec/CMakePresets.json" />
+    <File Path="native/ctfcodec/build.ps1" />
+    <File Path="native/ctfcodec/README.md" />
+    <File Path="native/ctfcodec/README-HEXLENS.md" />
+    <File Path="native/ctfcodec/include/ctfcodec.h" />
+    <File Path="native/ctfcodec/src/api.cpp" />
+    <File Path="native/ctfcodec/src/base.cpp" />
+    <File Path="native/ctfcodec/src/binary.cpp" />
+    <File Path="native/ctfcodec/src/cipher.cpp" />
+    <File Path="native/ctfcodec/src/classic.cpp" />
+    <File Path="native/ctfcodec/src/common.cpp" />
+    <File Path="native/ctfcodec/src/common.h" />
+    <File Path="native/ctfcodec/src/hash.cpp" />
+    <File Path="native/ctfcodec/src/magic.cpp" />
+    <File Path="native/ctfcodec/src/main.cpp" />
+    <File Path="native/ctfcodec/src/registry.cpp" />
+    <File Path="native/ctfcodec/src/selftest.cpp" />
+    <File Path="native/ctfcodec/src/text.cpp" />
+    <File Path="native/ctfcodec/src/unicode.cpp" />
+    <File Path="native/ctfcodec/src/util.cpp" />
+    <File Path="native/ctfcodec/src/util.h" />
+    <File Path="native/ctfcodec/tests/test_vectors.cpp" />
+    <File Path="native/ctfcodec/examples/demo.c" />
+    <File Path="native/ctfcodec/examples/ctfcodec.py" />
+  </Folder>
+</Solution>

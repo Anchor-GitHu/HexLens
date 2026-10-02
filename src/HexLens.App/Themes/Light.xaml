@@ -1,0 +1,55 @@
+<!--
+  亮色主题令牌 —— 直接取自 floral-notepaper 的设计语言（纸白 / 墨色 / 竹绿）。
+  只放颜色，不放样式：换主题 = 换这一份字典。
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
+
+    <!-- 纸 -->
+    <SolidColorBrush x:Key="PaperBrush" Color="#F6F3EC" po:Freeze="True" />
+    <SolidColorBrush x:Key="PaperWarmBrush" Color="#F0EBE0" po:Freeze="True" />
+    <SolidColorBrush x:Key="PaperDeepBrush" Color="#E8E1D3" po:Freeze="True" />
+    <SolidColorBrush x:Key="CloudBrush" Color="#FFFFFF" po:Freeze="True" />
+
+    <!-- 墨 -->
+    <SolidColorBrush x:Key="InkBrush" Color="#1A1A18" po:Freeze="True" />
+    <SolidColorBrush x:Key="InkSoftBrush" Color="#3D3D38" po:Freeze="True" />
+    <SolidColorBrush x:Key="InkFaintBrush" Color="#8A8A80" po:Freeze="True" />
+    <SolidColorBrush x:Key="InkGhostBrush" Color="#B8B8AE" po:Freeze="True" />
+    <SolidColorBrush x:Key="StoneBrush" Color="#6B6B62" po:Freeze="True" />
+
+    <!-- 竹绿（强调色） -->
+    <SolidColorBrush x:Key="BambooBrush" Color="#2D5A3D" po:Freeze="True" />
+    <SolidColorBrush x:Key="BambooLightBrush" Color="#3A7A52" po:Freeze="True" />
+    <SolidColorBrush x:Key="BambooMistBrush" Color="#E8F0EB" po:Freeze="True" />
+    <SolidColorBrush x:Key="BambooGlowBrush" Color="#D4E8DA" po:Freeze="True" />
+
+    <!-- 语义色 -->
+    <SolidColorBrush x:Key="DangerBrush" Color="#C45C4A" po:Freeze="True" />
+    <SolidColorBrush x:Key="WarnBrush" Color="#B8860B" po:Freeze="True" />
+    <SolidColorBrush x:Key="NoteBrush" Color="#4A8DB7" po:Freeze="True" />
+    <SolidColorBrush x:Key="DangerBgBrush" Color="#FEF2F2" po:Freeze="True" />
+
+    <!-- 派生语义（界面直接用这些） -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#F6F3EC" po:Freeze="True" />
+    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#F0EBE0" po:Freeze="True" />
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#F6F3EC" po:Freeze="True" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="#FFFFFF" po:Freeze="True" />
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="#E8E1D3" po:Freeze="True" />
+    <SolidColorBrush x:Key="SelectionBrush" Color="#D4E8DA" po:Freeze="True" />
+    <SolidColorBrush x:Key="HexTextBrush" Color="#3D3D38" po:Freeze="True" />
+    <SolidColorBrush x:Key="HexZeroBrush" Color="#B8B8AE" po:Freeze="True" />
+    <SolidColorBrush x:Key="HexAsciiBrush" Color="#6B6B62" po:Freeze="True" />
+    <SolidColorBrush x:Key="HexOffsetBrush" Color="#8A8A80" po:Freeze="True" />
+    <SolidColorBrush x:Key="HexHighlightBrush" Color="#E8F0EB" po:Freeze="True" />
+    <SolidColorBrush x:Key="ClueBadgeBrush" Color="#E8F0EB" po:Freeze="True" />
+
+    <!-- 熵色带：低熵偏纸色、高熵偏竹绿/赤陶 -->
+    <SolidColorBrush x:Key="EntropyLowBrush" Color="#E8E1D3" po:Freeze="True" />
+    <SolidColorBrush x:Key="EntropyMidBrush" Color="#8FB89B" po:Freeze="True" />
+    <SolidColorBrush x:Key="EntropyHighBrush" Color="#2D5A3D" po:Freeze="True" />
+
+    <Color x:Key="ShadowColor">#1A1A18</Color>
+    <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="ShadowOpacity">0.10</sys:Double>
+</ResourceDictionary>

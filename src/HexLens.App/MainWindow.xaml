@@ -1,0 +1,1017 @@
+<Window x:Class="HexLens.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:HexLens.App.Controls"
+        xmlns:vm="clr-namespace:HexLens.App.ViewModels"
+        mc:Ignorable="d"
+        Title="HexLens" Height="760" Width="1200" MinHeight="520" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None" ResizeMode="CanResize"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        FontFamily="{StaticResource UiFont}"
+        Icon="/Resources/app.ico"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0"
+                      CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+
+        <!-- 线索卡片（左栏）：标题 + 类别徽章 + 说明 + 元信息 -->
+        <DataTemplate x:Key="ClueTemplate">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="Medium" LineHeight="17"
+                               Foreground="{DynamicResource InkBrush}" TextWrapping="Wrap" />
+                    <Border Grid.Column="1" Background="{DynamicResource ClueBadgeBrush}" CornerRadius="4"
+                            Padding="5,1" Margin="6,1,0,0" VerticalAlignment="Top">
+                        <TextBlock Text="{Binding KindText}" Style="{StaticResource BadgeText}" />
+                    </Border>
+                </Grid>
+                <TextBlock Text="{Binding Detail}" Style="{StaticResource MetaText}" TextWrapping="Wrap"
+                           MaxHeight="48" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" LineHeight="15" />
+                <TextBlock Text="{Binding MetaText}" Style="{StaticResource MetaText}" Margin="0,5,0,0"
+                           Opacity="{Binding ConfidenceOpacity}" />
+
+                <!-- 一键修复（如把文件头改成正确签名）。只有线索真的带了写动作时才出现 ——
+                     这类动作会**真正改文档**，所以给一个明确的按钮，而不是藏在右键菜单里。 -->
+                <Button Content="应用修复" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="9,2"
+                        Click="ApplyFix_Click" CommandParameter="{Binding}"
+                        ToolTip="把正确的文件头写进文档（可用「撤销」回退）">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasFixAction}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- 发现的文件 -->
+        <DataTemplate x:Key="FileTemplate">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="Medium"
+                               Foreground="{DynamicResource InkBrush}" />
+                    <TextBlock Text="{Binding CategoryText}" Style="{StaticResource MetaText}" Margin="6,1,0,0" />
+                </StackPanel>
+                <TextBlock Text="{Binding RangeText}" Style="{StaticResource MetaText}"
+                           FontFamily="{StaticResource MonoFont}" Margin="0,3,0,0" />
+                <TextBlock Text="{Binding Note}" Style="{StaticResource MetaText}" TextWrapping="Wrap"
+                           MaxHeight="32" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding PositionText}" Style="{StaticResource MetaText}" Margin="0,2,0,0"
+                           Foreground="{DynamicResource BambooBrush}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- 位平面命中 -->
+        <DataTemplate x:Key="LsbTemplate">
+            <StackPanel>
+                <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="Medium"
+                           Foreground="{DynamicResource InkBrush}" TextWrapping="Wrap" />
+
+                <!-- 明文载荷：直接显示还原出的内容（可选中复制） -->
+                <Border CornerRadius="6" Padding="8,6" Margin="0,6,0,0"
+                        Background="{DynamicResource PaperDeepBrush}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasTextPreview}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBox Text="{Binding TextPreview, Mode=OneWay}" IsReadOnly="True"
+                             Style="{StaticResource PlainTextBox}" FontSize="12"
+                             FontFamily="{StaticResource MonoFont}"
+                             Foreground="{DynamicResource BambooBrush}" TextWrapping="Wrap"
+                             ToolTip="位平面里还原出的明文，可选中后 Ctrl+C 复制" />
+                </Border>
+
+                <TextBlock Text="{Binding ParameterText}" Style="{StaticResource MetaText}"
+                           FontFamily="{StaticResource MonoFont}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Description}" Style="{StaticResource MetaText}" TextWrapping="Wrap"
+                           MaxHeight="34" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                <TextBlock Text="{Binding PayloadSizeText}" Style="{StaticResource MetaText}" Margin="0,3,0,0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- 字符串（文本用只读 TextBox：可直接选中并 Ctrl+C 复制） -->
+        <DataTemplate x:Key="StringTemplate">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="96" />
+                    <ColumnDefinition Width="72" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding OffsetText}" Style="{StaticResource MetaText}"
+                           FontFamily="{StaticResource MonoFont}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding KindText}" Style="{StaticResource MetaText}"
+                           VerticalAlignment="Center" />
+                <TextBox Grid.Column="2" Text="{Binding Text, Mode=OneWay}" IsReadOnly="True"
+                         Style="{StaticResource PlainTextBox}" FontSize="12" VerticalAlignment="Center"
+                         Foreground="{DynamicResource InkSoftBrush}"
+                         ToolTip="可选中文本后按 Ctrl+C 复制（右键也有复制菜单）" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- 结构树 -->
+        <HierarchicalDataTemplate DataType="{x:Type vm:StructureItem}" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Medium"
+                           Foreground="{DynamicResource InkBrush}" />
+                <TextBlock Text="{Binding OffsetText}" Style="{StaticResource MetaText}"
+                           FontFamily="{StaticResource MonoFont}" Margin="8,1,0,0" />
+                <TextBlock Text="{Binding Detail}" Style="{StaticResource MetaText}" Margin="8,1,0,0"
+                           TextTrimming="CharacterEllipsis" MaxWidth="620" />
+            </StackPanel>
+        </HierarchicalDataTemplate>
+
+        <!-- 直方图柱 -->
+        <DataTemplate x:Key="HistogramTemplate">
+            <Rectangle Width="2" Height="{Binding BarHeight}" VerticalAlignment="Bottom"
+                       Fill="{DynamicResource BambooBrush}" Opacity="0.8" ToolTip="{Binding Tooltip}" />
+        </DataTemplate>
+
+        <!-- 高熵区 -->
+        <DataTemplate x:Key="EntropyRegionTemplate">
+            <Grid Margin="0,3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding RangeText}" Style="{StaticResource MetaText}"
+                           FontFamily="{StaticResource MonoFont}" />
+                <TextBlock Grid.Column="1" Text="{Binding EntropyText}" Style="{StaticResource MetaText}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- 编码识别建议（来自 ctfcodec 的 magic 打分） -->
+        <DataTemplate x:Key="MagicTemplate">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Algorithm}" FontSize="13" FontWeight="Medium"
+                               FontFamily="{StaticResource MonoFont}"
+                               Foreground="{DynamicResource InkBrush}" />
+                    <TextBlock Grid.Column="1" Text="{Binding ScoreText}" FontSize="12"
+                               Foreground="{DynamicResource BambooBrush}" />
+                </Grid>
+
+                <Border Height="3" CornerRadius="2" Margin="0,5,0,0" Width="120"
+                        HorizontalAlignment="Left" Background="{DynamicResource PaperDeepBrush}">
+                    <Border Height="3" CornerRadius="2" HorizontalAlignment="Left"
+                            Width="{Binding ScoreBarWidth}" Background="{DynamicResource BambooLightBrush}" />
+                </Border>
+
+                <TextBlock Text="{Binding Reason}" Style="{StaticResource MetaText}"
+                           TextWrapping="Wrap" Margin="0,6,0,0" />
+                <TextBlock Text="{Binding Preview}" FontSize="11.5" Margin="0,4,0,0"
+                           FontFamily="{StaticResource MonoFont}"
+                           Foreground="{DynamicResource StoneBrush}" TextTrimming="CharacterEllipsis" />
+                <Button Content="用这个解码" Style="{StaticResource GhostButton}"
+                        HorizontalAlignment="Left" Margin="0,6,0,0" Padding="8,3" FontSize="11"
+                        Click="DecodeSuggestion_Click" Tag="{Binding Algorithm}" />
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="30" />
+        </Grid.RowDefinitions>
+
+        <!-- ══ 标题栏 ══ -->
+        <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                <Border Width="24" Height="24" CornerRadius="7" Background="{DynamicResource BambooBrush}">
+                    <Path Data="{StaticResource Icon.Hash}" Stroke="{DynamicResource PaperBrush}"
+                          StrokeThickness="1.5" Width="13" Height="13" Stretch="Uniform" />
+                </Border>
+                <TextBlock Text="HexLens" FontSize="13.5" FontWeight="SemiBold" Margin="10,0,0,0"
+                           Foreground="{DynamicResource InkBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="—" Margin="9,0" Foreground="{DynamicResource InkGhostBrush}"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding FileNameText}" FontSize="12.5"
+                           Foreground="{DynamicResource InkSoftBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding DirtyMark}" Margin="6,0,0,0" Foreground="{DynamicResource BambooBrush}"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding FilePathText}" Style="{StaticResource MetaText}" Margin="14,1,0,0"
+                           VerticalAlignment="Center" MaxWidth="460" TextTrimming="CharacterEllipsis" />
+                <!-- 构建时间：一眼确认跑的是哪一版。排查"改了怎么没生效"时最省事 -->
+                <TextBlock Text="{Binding BuildStampText}" Style="{StaticResource MetaText}" Margin="10,1,0,0"
+                           VerticalAlignment="Center" Foreground="{DynamicResource InkGhostBrush}"
+                           ToolTip="本程序的构建时间。重新发布后这里会变，可据此确认你跑的不是旧包" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,8,0" VerticalAlignment="Center">
+                <Button x:Name="ThemeButton" Style="{StaticResource IconButton}" Click="Theme_Click"
+                        ToolTip="切换明暗主题">
+                    <Path Data="{StaticResource Icon.Moon}" Stroke="{DynamicResource InkSoftBrush}"
+                          StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform" />
+                </Button>
+                <Button Style="{StaticResource WindowButton}" Click="Minimize_Click" ToolTip="最小化">
+                    <Path Data="{StaticResource Icon.Minimize}" Stroke="{DynamicResource InkSoftBrush}"
+                          StrokeThickness="1.4" Width="12" Height="12" Stretch="Uniform" />
+                </Button>
+                <Button Style="{StaticResource WindowButton}" Click="Maximize_Click" ToolTip="最大化 / 还原">
+                    <Path x:Name="MaximizeIcon" Data="{StaticResource Icon.Maximize}"
+                          Stroke="{DynamicResource InkSoftBrush}" StrokeThickness="1.4"
+                          Width="11" Height="11" Stretch="Uniform" />
+                </Button>
+                <Button Style="{StaticResource CloseWindowButton}" Click="Close_Click" ToolTip="关闭">
+                    <Path Data="{StaticResource Icon.Close}" Stroke="{DynamicResource InkSoftBrush}"
+                          StrokeThickness="1.4" Width="11" Height="11" Stretch="Uniform" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ══ 主体 ══ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="272" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 左栏 -->
+            <Border Grid.Column="0" Background="{DynamicResource SidebarBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 线索过滤 -->
+                    <Border Grid.Row="0" Margin="14,12,14,8" Height="32" CornerRadius="10"
+                            Background="{DynamicResource PaperDeepBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Path Data="{StaticResource Icon.Search}" Stroke="{DynamicResource InkFaintBrush}"
+                                  StrokeThickness="1.4" Width="13" Height="13" Stretch="Uniform"
+                                  Margin="10,0,7,0" VerticalAlignment="Center" />
+                            <TextBox x:Name="ClueFilterBox" Grid.Column="1" Style="{StaticResource PlainTextBox}"
+                                     FontFamily="{StaticResource UiFont}" FontSize="12" VerticalAlignment="Center"
+                                     Margin="0,0,8,0" TextChanged="ClueFilter_TextChanged" />
+                            <TextBlock x:Name="ClueFilterPlaceholder" Grid.Column="1" Text="搜索线索…"
+                                       Foreground="{DynamicResource InkGhostBrush}" FontSize="12"
+                                       Margin="1,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" />
+                        </Grid>
+                    </Border>
+
+                    <!-- 打开 / 重新分析 -->
+                    <Grid Grid.Row="1" Margin="14,0,14,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Style="{StaticResource PrimaryButton}" Content="打开文件" Height="32"
+                                FontSize="12.5" Click="Open_Click" />
+                        <Button Grid.Column="1" Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                                Click="Analyze_Click" ToolTip="重新分析当前文件">
+                            <Path Data="{StaticResource Icon.Layers}" Stroke="{DynamicResource InkSoftBrush}"
+                                  StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+                    </Grid>
+
+                    <!-- 线索列表 -->
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="20,0,16,6">
+                            <TextBlock Text="线索" FontSize="11" Foreground="{DynamicResource InkFaintBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ClueCount, StringFormat='共 {0} 条'}" FontSize="11"
+                                       Foreground="{DynamicResource InkFaintBrush}" HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <ListBox x:Name="ClueList" Grid.Row="1" ItemsSource="{Binding Clues}"
+                                 ItemContainerStyle="{StaticResource ClueCardItem}"
+                                 ItemTemplate="{StaticResource ClueTemplate}"
+                                 Background="Transparent" BorderThickness="0" Padding="0,0,6,8"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 SelectionChanged="ClueList_SelectionChanged"
+                                 MouseDoubleClick="ClueList_MouseDoubleClick" />
+                    </Grid>
+
+                    <!-- 底部统计 -->
+                    <StackPanel Grid.Row="3" Margin="20,6,16,12">
+                        <TextBlock Text="{Binding FileCount, StringFormat='已识别结构 {0} 个'}"
+                                   Style="{StaticResource MetaText}" />
+                        <TextBlock Text="{Binding DiagnosticText}" Style="{StaticResource MetaText}"
+                                   TextWrapping="Wrap" MaxHeight="44" TextTrimming="CharacterEllipsis"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 主区 -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="48" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- 工具条 -->
+                <Grid Grid.Row="0" Margin="16,0,16,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="{DynamicResource PaperWarmBrush}" CornerRadius="9" Padding="2"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="TabHex" Style="{StaticResource SegmentButton}"
+                                             Content="十六进制" IsChecked="True" Tag="Hex" Checked="ViewTab_Checked" />
+                                <RadioButton x:Name="TabStructure" Style="{StaticResource SegmentButton}"
+                                             Content="结构" Tag="Structure" Checked="ViewTab_Checked" />
+                                <RadioButton x:Name="TabStego" Style="{StaticResource SegmentButton}"
+                                             Content="隐写" Tag="Stego" Checked="ViewTab_Checked" />
+                                <RadioButton x:Name="TabStrings" Style="{StaticResource SegmentButton}"
+                                             Content="字符串" Tag="Strings" Checked="ViewTab_Checked" />
+                                <RadioButton x:Name="TabCodec" Style="{StaticResource SegmentButton}"
+                                             Content="编码" Tag="Codec" Checked="ViewTab_Checked" />
+                                <RadioButton x:Name="TabEntropy" Style="{StaticResource SegmentButton}"
+                                             Content="熵 / 直方图" Tag="Entropy" Checked="ViewTab_Checked" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 字节搜索 -->
+                        <Border Margin="12,0,0,0" Width="258" Height="30" CornerRadius="9"
+                                Background="{DynamicResource PaperWarmBrush}"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="SearchModeButton" Grid.Column="0" Content="HEX"
+                                        Style="{StaticResource GhostButton}" FontSize="10.5" Padding="7,3"
+                                        Margin="3,0,0,0" Click="SearchMode_Click" ToolTip="切换匹配方式" />
+                                <TextBox x:Name="SearchBox" Grid.Column="1" Style="{StaticResource PlainTextBox}"
+                                         FontSize="11.5" VerticalAlignment="Center" Margin="4,0,0,0"
+                                         KeyDown="SearchBox_KeyDown" TextChanged="SearchBox_TextChanged" />
+                                <TextBlock x:Name="SearchPlaceholder" Grid.Column="1" Text="4D 5A ?? ?? 50 45"
+                                           FontSize="11.5" FontFamily="{StaticResource MonoFont}"
+                                           Foreground="{DynamicResource InkGhostBrush}" VerticalAlignment="Center"
+                                           Margin="5,0,0,0" IsHitTestVisible="False" />
+                                <Button Grid.Column="2" Style="{StaticResource IconButton}" Width="26" Height="26"
+                                        Margin="0,0,2,0" Click="Search_Click" ToolTip="搜索（回车）">
+                                    <Path Data="{StaticResource Icon.Search}" Stroke="{DynamicResource InkSoftBrush}"
+                                          StrokeThickness="1.4" Width="12" Height="12" Stretch="Uniform" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Style="{StaticResource GhostButton}" Content="撤销" Click="Undo_Click" />
+                        <Button Style="{StaticResource GhostButton}" Content="重做" Click="Redo_Click" />
+                        <Button Style="{StaticResource GhostButton}" Content="另存为" Click="SaveAs_Click" />
+                        <Button Style="{StaticResource PrimaryButton}" Content="保存" Margin="6,0,0,0"
+                                Click="Save_Click" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- 内容区 -->
+                <Grid Grid.Row="1">
+
+                    <!-- 十六进制 -->
+                    <Grid x:Name="PanelHex">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <controls:HexEditorView x:Name="HexView" Grid.Column="0" />
+                        <ScrollBar x:Name="HexScrollBar" Grid.Column="1" Orientation="Vertical"
+                                   Minimum="0" Maximum="0" Margin="0,40,4,6"
+                                   Style="{StaticResource HexScrollBarStyle}"
+                                   ValueChanged="HexScrollBar_ValueChanged" />
+
+                        <!-- 数据检视（对标 010 Editor 的 Data Inspector）：
+                             把选中字节按各种数值/文本类型解释出来，并列出可能的编码 -->
+                        <Border Grid.Column="2" Width="272" Margin="8,40,8,10" CornerRadius="10"
+                                Background="{DynamicResource SidebarBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="数据检视" FontSize="12.5" FontWeight="Medium"
+                                           Margin="12,10,12,6" Foreground="{DynamicResource InkBrush}" />
+
+                                <ListBox Grid.Row="1" ItemsSource="{Binding InspectorItems}"
+                                         Background="Transparent" BorderThickness="0" Padding="6,0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="6,2" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Grid Margin="{TemplateBinding Padding}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="78" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding Name}" FontSize="11"
+                                                                       Foreground="{DynamicResource InkFaintBrush}" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="11.5"
+                                                                       FontFamily="{StaticResource MonoFont}"
+                                                                       Foreground="{DynamicResource InkSoftBrush}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       ToolTip="{Binding Value}" />
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+
+                                <!-- 可能的编码（选中即识别） -->
+                                <StackPanel Grid.Row="2" Margin="12,8,12,0">
+                                    <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,0,0,8" />
+                                    <TextBlock Text="可能的编码" FontSize="11"
+                                               Foreground="{DynamicResource InkFaintBrush}" />
+                                    <TextBlock Text="{Binding SelectionCodecSummary}" Style="{StaticResource MetaText}"
+                                               Margin="0,5,0,0" TextWrapping="Wrap" />
+
+                                    <Border CornerRadius="6" Padding="7,5" Margin="0,6,0,0"
+                                            Background="{DynamicResource PaperDeepBrush}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasSelectionCodec}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBox Text="{Binding SelectionCodecPreview, Mode=OneWay}" IsReadOnly="True"
+                                                 Style="{StaticResource PlainTextBox}" FontSize="11.5"
+                                                 Foreground="{DynamicResource BambooBrush}" TextWrapping="Wrap"
+                                                 MaxHeight="96"
+                                                 ToolTip="选中片段解出的内容，可直接 Ctrl+C 复制" />
+                                    </Border>
+                                </StackPanel>
+
+                                <CheckBox Grid.Row="3" Margin="12,10,12,12" Content="Little Endian" FontSize="11.5"
+                                          Foreground="{DynamicResource InkSoftBrush}"
+                                          IsChecked="{Binding InspectorLittleEndian}"
+                                          ToolTip="切换后上方的 uint16/uint32/float… 会按另一种字节序重新解释" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- 结构 -->
+                    <Grid x:Name="PanelStructure" Visibility="Collapsed" Margin="16,8,16,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="336" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border CornerRadius="12" BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                BorderThickness="1" Background="{DynamicResource PaperBrush}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+                                <TreeView ItemsSource="{Binding StructureRoots}"
+                                          ItemContainerStyle="{StaticResource StructureTreeItem}"
+                                          Background="Transparent" BorderThickness="0" />
+                            </ScrollViewer>
+                        </Border>
+
+                        <Border Grid.Column="1" Margin="12,0,0,0" CornerRadius="12" Padding="16"
+                                Background="{DynamicResource SidebarBackgroundBrush}">
+                            <StackPanel>
+                                <TextBlock Text="识别摘要" FontSize="12.5" FontWeight="Medium"
+                                           Foreground="{DynamicResource InkBrush}" />
+                                <TextBlock Text="{Binding TypeText}" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BambooBrush}" Margin="0,8,0,0"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding TypeDetailText}" Style="{StaticResource MetaText}"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,14" />
+
+                                <TextBlock Text="基本属性" FontSize="11" Foreground="{DynamicResource InkFaintBrush}" />
+                                <TextBlock Text="{Binding SizeText, StringFormat='大小　{0}'}"
+                                           Style="{StaticResource MetaText}" Margin="0,6,0,0" />
+                                <TextBlock Text="{Binding EntropyText, StringFormat='熵　　{0}'}"
+                                           Style="{StaticResource MetaText}" Margin="0,3,0,0" />
+                                <TextBlock Text="{Binding GifFrameText, StringFormat='帧数　{0}'}"
+                                           Style="{StaticResource MetaText}" Margin="0,3,0,0" />
+                                <TextBlock Text="{Binding ElapsedText, StringFormat='耗时　{0}'}"
+                                           Style="{StaticResource MetaText}" Margin="0,3,0,0" />
+                                <TextBlock Text="{Binding CarrierText, StringFormat='载体　{0}'}"
+                                           Style="{StaticResource MetaText}" Margin="0,3,0,0" TextWrapping="Wrap" />
+
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,14" />
+
+                                <TextBlock Text="校验值（可选中复制）" FontSize="11"
+                                           Foreground="{DynamicResource InkFaintBrush}" />
+                                <TextBox Text="{Binding Md5Text, Mode=OneWay}" Style="{StaticResource PlainTextBox}"
+                                         FontSize="11" Margin="0,6,0,0" IsReadOnly="True" />
+                                <TextBox Text="{Binding Sha1Text, Mode=OneWay}" Style="{StaticResource PlainTextBox}"
+                                         FontSize="11" Margin="0,4,0,0" IsReadOnly="True" />
+                                <TextBox Text="{Binding Sha256Text, Mode=OneWay}" Style="{StaticResource PlainTextBox}"
+                                         FontSize="11" Margin="0,4,0,0" IsReadOnly="True" TextWrapping="Wrap" />
+                                <TextBox Text="{Binding Crc32Text, Mode=OneWay}" Style="{StaticResource PlainTextBox}"
+                                         FontSize="11" Margin="0,4,0,0" IsReadOnly="True" />
+
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,14" />
+
+                                <TextBlock Text="区域配色（十六进制视图）" FontSize="11"
+                                           Foreground="{DynamicResource InkFaintBrush}" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#2D5A3D" />
+                                        <TextBlock Text="文件头" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#3A7A52" />
+                                        <TextBlock Text="格式头" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#4A8DB7" />
+                                        <TextBlock Text="元数据" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#8B6BB5" />
+                                        <TextBlock Text="调色板" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#B8860B" />
+                                        <TextBlock Text="表 / 索引" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#C45C4A" />
+                                        <TextBlock Text="代码节" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#2F8F8F" />
+                                        <TextBlock Text="资源" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#8FB89B" />
+                                        <TextBlock Text="内容数据" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#6B6B62" />
+                                        <TextBlock Text="结束标记" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,7">
+                                        <Border Width="10" Height="10" CornerRadius="2" VerticalAlignment="Center" Background="#D9534F" />
+                                        <TextBlock Text="尾部附加 / 覆盖层" Style="{StaticResource MetaText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </WrapPanel>
+                                <TextBlock Text="提示：鼠标停在十六进制视图任意位置，会显示该处属于哪个区域。"
+                                           Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- 隐写 -->
+                    <Grid x:Name="PanelStego" Visibility="Collapsed" Margin="16,8,16,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="322" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="位平面分析结果" FontSize="12.5" FontWeight="Medium"
+                                       Foreground="{DynamicResource InkBrush}" Margin="2,0,0,8" />
+                            <Grid Grid.Row="1">
+                                <ListBox x:Name="LsbList" ItemsSource="{Binding LsbHits}"
+                                         ItemContainerStyle="{StaticResource ClueCardItem}"
+                                         ItemTemplate="{StaticResource LsbTemplate}"
+                                         Background="Transparent" BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                                <TextBlock x:Name="StegoEmptyHint" Visibility="Collapsed"
+                                           HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,40,0,0"
+                                           Style="{StaticResource MetaText}" TextAlignment="Center"
+                                           Text="当前载体未在常见位平面组合中发现文件签名。&#10;这并不等于「没有隐写」——换个通道顺序、位序，或先对图像做位反转，都可能让载荷现身；扫描范围见右侧说明。" />
+                            </Grid>
+                        </Grid>
+
+                        <Border Grid.Column="1" Margin="12,0,0,0" CornerRadius="12" Padding="16"
+                                Background="{DynamicResource SidebarBackgroundBrush}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <TextBlock Text="位平面扫描" FontSize="12.5" FontWeight="Medium"
+                                               Foreground="{DynamicResource InkBrush}" />
+                                    <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                               Text="分析时会穷举常见组合：位平面 0–2 × 单通道/通道组 × 位序（低位先到/高位先到）× 扫描顺序（行/列）× 逆序，并从提取出的位流中直接扫描文件签名。" />
+                                    <TextBlock Text="{Binding CarrierText, StringFormat='当前载体：{0}'}"
+                                               Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,10,0,0" />
+                                    <TextBlock Text="{Binding LsbCount, StringFormat='命中 {0} 条'}"
+                                               Style="{StaticResource MetaText}" Margin="0,6,0,0" />
+
+                                    <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,14" />
+
+                                    <TextBlock Text="操作提示" FontSize="11"
+                                               Foreground="{DynamicResource InkFaintBrush}" />
+                                    <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                               Text="· 双击左栏线索可直接导出可疑区间&#10;· 十六进制页支持半字节编辑、Ctrl+C 复制、Ctrl+V 粘贴&#10;· 音频 LSB：16 位样本被拆成「低字节/高字节」两个通道，位平面 0 即样本最低位" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+
+                    <!-- 字符串 -->
+                    <Grid x:Name="PanelStrings" Visibility="Collapsed" Margin="16,8,16,14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="2,0,2,8">
+                            <TextBlock Text="提取到的字符串（双击可在十六进制中定位）" FontSize="12.5"
+                                       FontWeight="Medium" Foreground="{DynamicResource InkBrush}" />
+                            <TextBlock Text="{Binding StringCount, StringFormat='共 {0} 条'}"
+                                       Style="{StaticResource MetaText}" HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Grid.Row="1" CornerRadius="12" BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                BorderThickness="1" Background="{DynamicResource PaperBrush}">
+                            <Grid>
+                                <ListBox x:Name="StringList" ItemsSource="{Binding Strings}"
+                                         ItemTemplate="{StaticResource StringTemplate}"
+                                         Background="Transparent" BorderThickness="0" Padding="8"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         MouseDoubleClick="StringList_MouseDoubleClick"
+                                         PreviewMouseLeftButtonUp="StringList_MouseLeftButtonUp"
+                                         PreviewMouseRightButtonUp="StringList_MouseRightButtonUp"
+                                         ToolTip="单击任意一行即复制该字符串；双击定位到十六进制">
+                                    <ListBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="复制这一行" Click="StringCopyRow_Click" />
+                                            <MenuItem Header="复制全部字符串" Click="StringCopyAll_Click" />
+                                        </ContextMenu>
+                                    </ListBox.ContextMenu>
+                                </ListBox>
+                                <TextBlock x:Name="StringsEmptyHint" Visibility="Collapsed"
+                                           HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,40,0,0"
+                                           Style="{StaticResource MetaText}"
+                                           Text="未提取到可打印字符串（数据可能已压缩或加密）。" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- 熵 / 直方图 -->
+                    <Grid x:Name="PanelEntropy" Visibility="Collapsed" Margin="16,8,16,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="300" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="132" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="字节频率直方图（横轴 0x00 – 0xFF 字节值 · 纵轴 该值出现次数）"
+                                       FontSize="12.5" FontWeight="Medium"
+                                       Foreground="{DynamicResource InkBrush}" Margin="2,0,0,10" />
+
+                            <Border Grid.Row="1" CornerRadius="12" Padding="10,14,10,10"
+                                    BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Background="{DynamicResource PaperBrush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <!-- 纵坐标刻度 -->
+                                        <ColumnDefinition Width="Auto" />
+                                        <!-- 柱区 -->
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 纵轴：标题行 + 刻度行。
+                                         ⚠️ 不用负 Margin 硬挤 —— 超出 Border 的 Padding 区域会被直接裁掉（这个坑刚踩过），
+                                         改成"标题单独占一行"，并让右侧柱区留一个等高的空行，两者才能对齐。 -->
+                                    <Grid Grid.Column="0" Margin="0,0,7,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Text="字节数" FontSize="9.5"
+                                                   HorizontalAlignment="Right" Margin="0,0,0,4"
+                                                   Foreground="{DynamicResource InkFaintBrush}" />
+
+                                        <ItemsControl Grid.Row="1" ItemsSource="{Binding HistogramAxis}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Columns="1" Rows="5" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" FontSize="9.5"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                               FontFamily="{StaticResource MonoFont}"
+                                                               Foreground="{DynamicResource InkGhostBrush}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+
+                                    <!-- 柱区：等高占位行 + 5 条水平网格线垫底，再叠柱子 -->
+                                    <Grid Grid.Column="1">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <!-- 与左侧「字节数」标题等高的占位，保证网格线与刻度对齐 -->
+                                        <TextBlock Grid.Row="0" Text=" " FontSize="9.5" Margin="0,0,0,4" />
+
+                                        <Border Grid.Row="1" BorderThickness="0,0,0,1"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}" Opacity="0.9" />
+                                        <Border Grid.Row="2" BorderThickness="0,0,0,1"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}" Opacity="0.65" />
+                                        <Border Grid.Row="3" BorderThickness="0,0,0,1"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}" Opacity="0.5" />
+                                        <Border Grid.Row="4" BorderThickness="0,0,0,1"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}" Opacity="0.65" />
+                                        <Border Grid.Row="5" BorderThickness="0,0,0,1"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}" Opacity="0.9" />
+
+                                        <ItemsControl Grid.Row="1" Grid.RowSpan="5" ItemsSource="{Binding Histogram}"
+                                                      ItemTemplate="{StaticResource HistogramTemplate}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="1" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <!-- 横坐标：首尾刻度，明确柱区覆盖 0x00–0xFF -->
+                            <Grid Grid.Row="1" VerticalAlignment="Bottom" Margin="0,0,0,-15">
+                                <TextBlock Text="0x00" FontSize="9.5" HorizontalAlignment="Left"
+                                           FontFamily="{StaticResource MonoFont}"
+                                           Foreground="{DynamicResource InkGhostBrush}" />
+                                <TextBlock Text="0xFF" FontSize="9.5" HorizontalAlignment="Right"
+                                           FontFamily="{StaticResource MonoFont}"
+                                           Foreground="{DynamicResource InkGhostBrush}" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="2" Text="高熵区间（疑似压缩或加密数据）" FontSize="11"
+                                       Foreground="{DynamicResource InkFaintBrush}" Margin="2,16,0,6" />
+
+                            <ListBox Grid.Row="3" ItemsSource="{Binding EntropyRegions}"
+                                     ItemTemplate="{StaticResource EntropyRegionTemplate}"
+                                     Background="Transparent" BorderThickness="0" />
+                        </Grid>
+
+                        <Border Grid.Column="1" Margin="12,0,0,0" CornerRadius="12" Padding="16"
+                                Background="{DynamicResource SidebarBackgroundBrush}">
+                            <StackPanel>
+                                <TextBlock Text="怎么看这张图" FontSize="12.5" FontWeight="Medium"
+                                           Foreground="{DynamicResource InkBrush}" />
+
+                                <!-- 先把左图的纵轴说清楚，再把它跟熵联系起来 —— 否则右边在讲熵、
+                                     左边画的是"出现次数"，两边各说各话。
+                                     （加粗要用 Run，TextBlock.Text 不解析 markdown 的 ** —— 踩过） -->
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,8,0,0">
+                                    左边这张是「字节频率直方图」：横轴是字节值 0x00–0xFF，纵轴是<Run
+                                        FontWeight="SemiBold">该值在文件里出现了多少次</Run> —— 注意它量的是次数，不是熵。
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="它与熵的关系：柱子越齐平，说明各字节值出现得越均匀、数据越随机，熵就越接近 8；柱子高低悬殊，说明数据越有规律，熵就越低。" />
+
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,14" />
+
+                                <TextBlock Text="熵的含义" FontSize="12" FontWeight="Medium"
+                                           Foreground="{DynamicResource InkBrush}" />
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Text="熵的取值范围是 0–8 bit/字节，衡量「字节分布有多均匀」。十六进制页顶部的色带按 256 字节格计算（够细）；判定高熵区间时按 1024 字节格计算 —— 小块样本的熵波动大，256 字节格的随机数据均值只有约 7.28，直接拿来判定会频繁失手。" />
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Text="· 接近 0：纯填充或重复数据" />
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                           Text="· 4 – 7：普通文本、代码、未压缩媒体" />
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                           Text="· 接近 8：已压缩或已加密（传统计特征不可读）" />
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,10,0,0"
+                                           Text="十六进制页顶部的色带就是这条曲线：深绿一段通常就是藏起来的压缩包或加密数据。" />
+
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,14" />
+
+                                <TextBlock Text="{Binding EntropyText, StringFormat='整体熵　{0}'}"
+                                           Style="{StaticResource MetaText}" />
+                                <TextBlock Text="{Binding SizeText, StringFormat='数据量　{0}'}"
+                                           Style="{StaticResource MetaText}" Margin="0,4,0,0" />
+
+                                <!-- 把熵值直接和左图的形状对上，这一步才真正"切合"了两边 -->
+                                <TextBlock Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Text="可以直接对照左图：熵接近 8 时，各柱高度应当大致齐平（本文件即如此）；明显低于 8 时，会出现几根特别高的柱子。" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- 编码：复用隔壁 Coding\ctfcodec 的 127 个算法做识别与一键解码 -->
+                    <Grid x:Name="PanelCodec" Visibility="Collapsed" Margin="16,8,16,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="392" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Margin="2,0,2,8">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="编码识别" FontSize="12.5" FontWeight="Medium"
+                                               Foreground="{DynamicResource InkBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding SelectionInfoText}" Style="{StaticResource MetaText}"
+                                               Margin="10,1,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding CodecLibraryText}" Style="{StaticResource MetaText}"
+                                               Margin="0,0,10,0" VerticalAlignment="Center" />
+                                    <Button Content="XOR 破解" Style="{StaticResource GhostButton}"
+                                            Padding="10,4" FontSize="11.5" Click="BruteForceXor_Click"
+                                            ToolTip="对选中区间遍历 256 个单字节密钥，按可读性与文件签名打分排出候选" />
+                                    <Button Content="分析选区" Style="{StaticResource PrimaryButton}"
+                                            Padding="10,4" FontSize="11.5" Margin="8,0,0,0" Click="AnalyzeCodec_Click" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <ListBox x:Name="MagicList" ItemsSource="{Binding MagicSuggestions}"
+                                         ItemContainerStyle="{StaticResource ClueCardItem}"
+                                         ItemTemplate="{StaticResource MagicTemplate}"
+                                         Background="Transparent" BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+
+                                <!-- XOR 暴力破解候选：只有跑过破解且真有候选时才出现 -->
+                                <Border Grid.Row="1" Margin="2,10,2,0" CornerRadius="8" Padding="12,10"
+                                        Background="{DynamicResource SidebarBackgroundBrush}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasXorCandidates}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel>
+                                        <TextBlock Text="XOR 破解候选（按证据强度排序）" FontSize="12" FontWeight="Medium"
+                                                   Foreground="{DynamicResource InkBrush}" />
+                                        <TextBlock Text="{Binding XorStatusText}" Style="{StaticResource MetaText}"
+                                                   TextWrapping="Wrap" Margin="0,5,0,0" />
+                                        <ItemsControl ItemsSource="{Binding XorCandidates}" Margin="0,7,0,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,3">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding KeyText}" FontFamily="{StaticResource MonoFont}"
+                                                                   FontSize="11.5" Foreground="{DynamicResource BambooBrush}"
+                                                                   VerticalAlignment="Center" MinWidth="72" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Preview}"
+                                                                   FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                                                   Foreground="{DynamicResource InkSoftBrush}"
+                                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                                   Margin="8,0" ToolTip="{Binding Reason}" />
+                                                        <Button Grid.Column="2" Content="用这个 key"
+                                                                Style="{StaticResource GhostButton}" Padding="8,1" FontSize="11"
+                                                                Click="ApplyXorKey_Click" CommandParameter="{Binding}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Grid>
+
+                        <Border Grid.Column="1" Margin="12,0,0,0" CornerRadius="12" Padding="16"
+                                Background="{DynamicResource SidebarBackgroundBrush}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="解码结果" FontSize="12.5" FontWeight="Medium"
+                                           Foreground="{DynamicResource InkBrush}" />
+                                <TextBlock Grid.Row="1" Text="{Binding CodecStatus}" Style="{StaticResource MetaText}"
+                                           TextWrapping="Wrap" Margin="0,8,0,0" />
+
+                                <Border Grid.Row="2" CornerRadius="8" Padding="8" Margin="0,10,0,0"
+                                        Background="{DynamicResource PaperBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+                                    <TextBox Text="{Binding DecodePreviewText, Mode=OneWay}" IsReadOnly="True"
+                                             Style="{StaticResource PlainTextBox}" FontSize="11.5"
+                                             TextWrapping="Wrap" AcceptsReturn="True"
+                                             ToolTip="可直接选中并 Ctrl+C 复制" />
+                                </Border>
+
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button Content="另存解码结果" Style="{StaticResource GhostButton}"
+                                            Click="SaveDecoded_Click" />
+                                    <Button Content="作为新文档打开" Style="{StaticResource GhostButton}"
+                                            Margin="6,0,0,0" Click="OpenDecoded_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ══ 状态栏 ══ -->
+        <Border Grid.Row="2" Background="{DynamicResource SidebarBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0">
+            <Grid Margin="16,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusOffset}" Style="{StaticResource MetaText}"
+                               FontFamily="{StaticResource MonoFont}" />
+                    <TextBlock Text="·" Margin="8,0" Style="{StaticResource MetaText}" />
+                    <TextBlock Text="{Binding StatusSelection}" Style="{StaticResource MetaText}" />
+                    <TextBlock Text="·" Margin="8,0" Style="{StaticResource MetaText}" />
+                    <TextBlock Text="{Binding TypeText}" Style="{StaticResource MetaText}" />
+                    <TextBlock Text="·" Margin="8,0" Style="{StaticResource MetaText}" />
+                    <TextBlock Text="{Binding SizeText}" Style="{StaticResource MetaText}" />
+                    <TextBlock Text="·" Margin="8,0" Style="{StaticResource MetaText}" />
+                    <TextBlock Text="{Binding EntropyText}" Style="{StaticResource MetaText}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SearchStatus}" Style="{StaticResource MetaText}"
+                               Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource MetaText}"
+                               MaxWidth="560" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

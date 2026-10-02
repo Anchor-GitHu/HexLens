@@ -1,0 +1,27 @@
+# 换行与二进制类型约定
+# Windows 项目：源码/脚本按 CRLF 检出，图片与压缩包一律视为二进制，避免 git 改动字节。
+
+* text=auto
+
+*.cs      text diff=csharp
+*.xaml    text
+*.csproj  text
+*.props   text
+*.slnx    text
+*.config  text
+*.md      text
+*.ps1     text
+
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.zip     binary
+*.nupkg   binary
+*.dll     binary
+*.exe     binary
+*.pdb     binary
+
+# 样本是刻意构造的二进制坑题，绝不能被换行转换或 diff 折行
+samples/** binary

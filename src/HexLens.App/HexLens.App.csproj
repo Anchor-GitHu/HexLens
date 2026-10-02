@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\HexLens.Core\HexLens.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    ctfcodec.dll：本项目内置的原生编码库。源码在 native/ctfcodec，
+    由 scripts/build.ps1 用 CMake 就地编出，不依赖任何外部项目或预编译二进制。
+    用于「编码识别猜测」与一键解码，避免在 HexLens 里重写 127 个编码算法。
+
+    Link 让它平铺到输出/exe 同目录 —— DllImport("ctfcodec.dll") 只在该目录查找，
+    若保留 lib\ 子目录会加载失败。
+
+    Condition：这个 DLL 是**构建产物**（不入库），所以直接 dotnet build 时它可能还不存在。
+    缺它就跳过搬运、编译照常通过，「编码识别」届时显示为不可用，其余能力不受影响。
+  -->
+  <ItemGroup>
+    <None Include="lib\ctfcodec.dll" Link="ctfcodec.dll" CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('lib\ctfcodec.dll')" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- exe 的文件图标（资源管理器 / 任务栏 / 快捷方式）。多尺寸 16–256，见 Resources/app.ico -->
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- 图标同时作为 WPF 资源嵌入，供窗口自绘与「关于」等处引用 -->
+  <ItemGroup>
+    <Resource Include="Resources\app.ico" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,60 @@
+<Window x:Class="HexLens.App.Controls.ThemedDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="HexLens"
+        Width="440" SizeToContent="Height"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="{StaticResource UiFont}"
+        Background="{DynamicResource PaperBrush}">
+
+    <!-- 和主窗口同款的无边框 + WindowChrome（比 AllowsTransparency 的软件渲染快得多） -->
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="0"
+                            GlassFrameThickness="0" CornerRadius="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <!--
+        主题化弹窗：系统 MessageBox 是方角灰白系统样式，和这套纸感界面是两套语言，
+        所以自己画一个。颜色全部走主题令牌，明暗色自动跟随。
+
+        ⚠️ 窗口 Background 必须是**不透明**色，且这个 Border 要**铺满整个窗口**（Margin=0）。
+           早先写成 Background="Transparent" + Border Margin="10"，而 AllowsTransparency=False ——
+           WPF 渲染不出透明，就把露出来的那圈填成**纯黑**，看起来像弹窗镶了道黑边。
+           （不能用 AllowsTransparency=True 来救：那会让整个窗口掉到软件渲染。）
+    -->
+    <Border Background="{DynamicResource PaperBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+        <Grid Margin="20,16,20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 标题 -->
+            <TextBlock x:Name="TitleText" Grid.Row="0" Text="提示"
+                       FontSize="13.5" FontWeight="Medium"
+                       Foreground="{DynamicResource InkBrush}" />
+
+            <!-- 正文 -->
+            <TextBox x:Name="BodyText" Grid.Row="1" Margin="0,10,0,0"
+                     IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0"
+                     Background="Transparent" MaxHeight="320"
+                     Style="{StaticResource PlainTextBox}"
+                     FontSize="12.5" Foreground="{DynamicResource InkSoftBrush}" />
+
+            <!-- 按钮 -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                <Button x:Name="CopyButton" Style="{StaticResource GhostButton}" Content="复制"
+                        Click="Copy_Click" Visibility="Collapsed" />
+                <Button x:Name="AltButton" Style="{StaticResource GhostButton}" Content="取消"
+                        MinWidth="88" Margin="8,0,0,0" Visibility="Collapsed" Click="Alt_Click" />
+                <Button x:Name="OkButton" Style="{StaticResource PrimaryButton}" Content="确定"
+                        MinWidth="80" Margin="8,0,0,0" IsDefault="True" Click="Ok_Click" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

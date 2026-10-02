@@ -1,0 +1,56 @@
+# ── 构建产物 ────────────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# ── 离线构建用的工具链与包缓存（体积大；scripts/build.ps1 会按需重建）──
+#    注意：local-packages 里放的是手工下载的 .nupkg（自包含/单文件发布用），
+#    属于可再获取的依赖，不入库；但请勿在本地删除，否则要重新下载。
+.dotnet/
+.nuget/
+local-packages/
+
+# ── CMake 构建目录（顶层与子目录）────────────────────────────────────
+build/
+build-*/
+
+# ── 发布产物 ────────────────────────────────────────────────────────────
+#    dist/ 是交付物（由 scripts/make-release.ps1 生成：小版 + 大版 + zip），
+#    publish/ 是 publish.ps1 的中间输出。两者都可一条命令重建，不入库。
+dist/
+publish/
+
+# ── 过程产物：截图、自检报告 ────────────────────────────────────────────
+#    README 用到的成品截图已归档到 docs/images/，这里的都是一次性产物。
+artifacts/
+*-smoke.txt
+publish-*.txt
+
+# ── 原生库（native/ctfcodec）────────────────────────────────────────────
+#    源码完整入库（include/ src/ tests/ examples/），clone 下来就能自己编出 ctfcodec.dll。
+#    CMake 构建目录、以及编出来的 DLL 都是**产物**，一律不入库
+#   （lib\*.dll 由 scripts/build.ps1 就地生成，不是源码）。
+native/ctfcodec/build*/
+src/HexLens.App/lib/*.dll
+
+# ── 编辑器 / 系统杂物 ───────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+*.log
+*.tmp
+
+# ── 仓库只跟踪主程序 ────────────────────────────────────────────────────
+#    跟踪范围：src/（主程序与核心库）、native/（运行依赖）、根配置文件、README.md。
+#    以下属于开发/验证用的周边，**不随仓库分发**（本地文件依然保留）：
+#      tests/    核心测试套件 + CLI 分析工具
+#      （docs/ 已放回仓库，不再排除）
+#      samples/  演示样本
+#      scripts/  辅助脚本（截图 / 发布 / 冒烟测试）
+#    注：CMakeLists.txt 会在 tests/ 不存在时自动跳过测试目标，
+#    所以 clone 本仓库后仍能正常构建并发布主程序。
+tests/
+# docs/     ← 已允许上传：说明文档与界面截图随仓库分发
+samples/
+scripts/

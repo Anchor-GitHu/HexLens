@@ -1,0 +1,27 @@
+# 构建产物
+build/
+build-msvc/
+build-mingw/
+build-msvc-debug/
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+*.a
+*.pdb
+*.ilk
+*.exp
+
+# IDE / 编辑器
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# 临时文件
+*.tmp
+*.log
+__pycache__/
+*.pyc
